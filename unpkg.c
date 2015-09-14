@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "sha2.h"
 
 #define PS4_PKG_MAGIC             0x544E437F // .CNT
@@ -19,6 +20,12 @@
 #define PS4_PKG_ENTRY_TYPE_LICENSE       0x0400
 #define PS4_PKG_ENTRY_TYPE_FILE1         0x1000
 #define PS4_PKG_ENTRY_TYPE_FILE2         0x1200
+
+#ifdef _WIN32
+	#define OS_SEPARATOR "\\"
+#else
+	#define OS_SEPARATOR "/"
+#endif
 
 // CNT/PKG structures.
 struct cnt_pkg_main_header {
@@ -146,7 +153,7 @@ char *build_path(const char *str, char c, const char *r)
     char *ptr = res;
     for(tmp = str; *tmp; tmp++) {
         if(*tmp == c) {
-			mkdir(res);
+	    mkdir(res, S_IRWXU);
             memcpy(ptr, r, rlen);
             ptr += rlen;
         } else {
@@ -256,8 +263,8 @@ int main (int argc, char *argv[])
 		return 0;
 	}
 	
-	FILE *in;
-	FILE *out;
+	FILE *in = NULL;
+	FILE *out = NULL;
 	struct cnt_pkg_main_header m_header;
 	struct cnt_pkg_content_header c_header;
 	memset(&m_header, 0, sizeof(struct cnt_pkg_main_header));
@@ -325,12 +332,12 @@ int main (int argc, char *argv[])
 	unsigned char *entry_digests;
 	
 	// Vars for calculating SHA-256 hashes.
-	unsigned char *main_entries_data;
-	unsigned char *main_entries_sub_data;
-	unsigned char *digest_table_data;
-	unsigned char *body_data;
-	unsigned char *content_one_block_data;
-	unsigned char *content_data;
+	unsigned char *main_entries_data = NULL;
+	unsigned char *main_entries_sub_data = NULL;
+	unsigned char *digest_table_data = NULL;
+	unsigned char *body_data = NULL;
+	unsigned char *content_one_block_data = NULL;
+	unsigned char *content_data = NULL;
 	
 	int main_entries_data_size = 0;
 	int main_entries_sub_data_size = 0;
@@ -526,7 +533,7 @@ int main (int argc, char *argv[])
 	char pkg_name[256];
 	memset(pkg_name, 0, 256);
 	memcpy(pkg_name, argv[1], 0x13);
-	mkdir(pkg_name);
+	mkdir(pkg_name, S_IRWXU);
 	
 	// Search through the entries for mapped file data and output it.
 	printf("Dumping internal PKG files:\n");
@@ -537,9 +544,9 @@ int main (int argc, char *argv[])
 		fseek(in, entry_files[i].offset, SEEK_SET);
 		fread(entry_file_data, 1,  entry_files[i].size, in);
 
-		sprintf(dest_path, "%s\\%s", pkg_name, entry_files[i].name);
+		sprintf(dest_path, "%s%s%s", pkg_name, OS_SEPARATOR, entry_files[i].name);
 		
-		char *path = build_path(dest_path, '/', "\\");
+		char *path = build_path(dest_path, '/', OS_SEPARATOR);
 		printf("%s\n", path);
 		
 		if ((out = fopen(path, "wb")) == NULL ) {
